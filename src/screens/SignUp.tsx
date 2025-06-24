@@ -10,9 +10,16 @@ import { Button } from "@components/Button";
 import { useNavigation } from "@react-navigation/native";
 import { AuthNavigationRoutesProps } from '@routes/auth.routes';
 
+type FormDataProps = {
+    name: string;
+    email: string;
+    password: string;
+    password_confirm: string;
+}
+
 export function SignUp() {
 
-    const { control } = useForm();
+    const { control, handleSubmit } = useForm<FormDataProps>();
 
     const navigation = useNavigation<AuthNavigationRoutesProps>();
 
@@ -20,7 +27,8 @@ export function SignUp() {
         navigation.goBack();
     }
 
-    function handleSignUp() {
+    function handleSignUp({name, email, password, password_confirm}: FormDataProps) {
+        console.log({ name, email, password, password_confirm });
     }
 
     return (
@@ -47,8 +55,11 @@ export function SignUp() {
                         <Heading color="$gray100">
                             Crie sua conta
                         </Heading>
-                        <Controller control={control}
+                        <Controller control={control} 
                             name="name"
+                            rules={{
+                                required: 'Informe o nome'
+                            }}
                             render={({ field: { onChange, value } }) => (
                                 <Input
                                     placeholder="Nome"
@@ -91,9 +102,12 @@ export function SignUp() {
                                     autoCorrect={false}
                                     onChangeText={onChange}
                                     value={value}
-                                />)}
+                                    onSubmitEditing={handleSubmit(handleSignUp)}
+                                    returnKeyType="send"
+                                />
+                            )}
                         />
-                        <Button title="Criar e acessar" onPress={handleSignUp} />
+                        <Button title="Criar e acessar" onPress={handleSubmit(handleSignUp)} />
                     </Center>
 
                     <Button
