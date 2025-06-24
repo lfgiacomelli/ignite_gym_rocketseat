@@ -1,5 +1,10 @@
-import { VStack, Image, Center, Text, Heading, ScrollView } from "@gluestack-ui/themed";
+import { useState } from "react";
+import { VStack, Image, Center, Text, Heading, ScrollView, useToast } from "@gluestack-ui/themed";
 import { useForm, Controller } from "react-hook-form"
+import { yupResolver } from '@hookform/resolvers/yup'
+import * as yup from 'yup';
+
+import { api } from '@services/api';
 
 import BackgroundImg from '@assets/background.png';
 import Logo from '@assets/logo.svg';
@@ -7,8 +12,11 @@ import Logo from '@assets/logo.svg';
 import { Input } from "@components/Input";
 import { Button } from "@components/Button";
 
+import { AppError } from "@utils/AppError";
+
 import { useNavigation } from "@react-navigation/native";
 import { AuthNavigationRoutesProps } from '@routes/auth.routes';
+import { ToastMessage } from "@components/ToastMessage";
 
 type FormDataProps = {
     name: string;
@@ -17,9 +25,19 @@ type FormDataProps = {
     password_confirm: string;
 }
 
-export function SignUp() {
+const signUpSchema = yup.object({
+    name: yup.string().required('Informe o nome.'),
+    email: yup.string().required('Informe o e-mail.').email('E-mail inválido.'),
+    password: yup.string().required('Informe a senha.').min(6, 'A senha deve ter pelo menos 6 caracteres.'),
+    password_confirm: yup.string().required('Confirme a senha.').oneOf([yup.ref("password"), ""], "As senhas não conferem.")
+});
 
-    const { control, handleSubmit } = useForm<FormDataProps>();
+export function SignUp() {
+    const [isLoading, setIsLoading] = useState(false);
+    const toast = useToast();
+    const { control, handleSubmit, formState: { errors } } = useForm<FormDataProps>({
+        resolver: yupResolver(signUpSchema)
+    });
 
     const navigation = useNavigation<AuthNavigationRoutesProps>();
 
@@ -27,9 +45,34 @@ export function SignUp() {
         navigation.goBack();
     }
 
-    function handleSignUp({name, email, password, password_confirm}: FormDataProps) {
-        console.log({ name, email, password, password_confirm });
-    }
+    async function handleSignUp({ name, email, password }: FormDataProps) {
+  try {
+    setIsLoading(true);
+    await api.post('/users', { name, email, password });
+  } catch (error) {
+    const isAppError = error instanceof AppError;
+    const errorMessage = isAppError
+      ? error.message
+      : 'Erro inesperado. Tente novamente mais tarde.';
+
+    toast.show({
+      placement: 'top',
+      render: ({ id }) => (
+        <ToastMessage
+          id={id}
+          action="error"
+          title="Erro"
+          description={errorMessage}
+          onClose={() => toast.close(id)}
+        />
+      ),
+    });
+  } finally {
+    setIsLoading(false);
+  }
+}
+
+
 
     return (
         <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
@@ -55,16 +98,14 @@ export function SignUp() {
                         <Heading color="$gray100">
                             Crie sua conta
                         </Heading>
-                        <Controller control={control} 
+                        <Controller control={control}
                             name="name"
-                            rules={{
-                                required: 'Informe o nome'
-                            }}
                             render={({ field: { onChange, value } }) => (
                                 <Input
                                     placeholder="Nome"
                                     onChangeText={onChange}
                                     value={value}
+                                    errorMessage={errors.name?.message}
                                 />
                             )}
                         />
@@ -78,6 +119,7 @@ export function SignUp() {
                                     autoCorrect={false}
                                     onChangeText={onChange}
                                     value={value}
+                                    errorMessage={errors.email?.message}
                                 />)}
                         />
                         <Controller control={control}
@@ -90,6 +132,7 @@ export function SignUp() {
                                     autoCorrect={false}
                                     onChangeText={onChange}
                                     value={value}
+                                    errorMessage={errors.password?.message}
                                 />)}
                         />
                         <Controller control={control}
@@ -104,10 +147,11 @@ export function SignUp() {
                                     value={value}
                                     onSubmitEditing={handleSubmit(handleSignUp)}
                                     returnKeyType="send"
+                                    errorMessage={errors.password_confirm?.message}
                                 />
                             )}
                         />
-                        <Button title="Criar e acessar" onPress={handleSubmit(handleSignUp)} />
+                        <Button title="Criar e acessar" isLoading={isLoading} onPress={handleSubmit(handleSignUp)} />
                     </Center>
 
                     <Button
