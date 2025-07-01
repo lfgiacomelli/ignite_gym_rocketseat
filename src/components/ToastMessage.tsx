@@ -11,8 +11,8 @@ type Props = {
 
 export function ToastMessage({ id, title, description, action = "success", onClose }: Props) {
     return (
-        <Toast nativeID={`toast-${id}`} action={action} bgColor={action === "success" ? "$green500" : "$red500"}>
-            <VStack space="xs" w="$full">
+        <Toast nativeID={`toast-${id}`} action={action} bgColor={action === "success" ? "$green500" : "$red500"} mt="$10">
+            <VStack space="xs" w="$56"  >
                 <Pressable alignSelf="flex-end" onPress={onClose}>
                     <Icon as={X} size="md" color="$coolGray50" />
                 </Pressable>
