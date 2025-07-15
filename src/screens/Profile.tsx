@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Alert, ScrollView, TouchableOpacity } from "react-native";
-import { Center, Heading, Text, VStack, useToast } from "@gluestack-ui/themed";
+import { Center, Heading, Text, VStack, set, useToast } from "@gluestack-ui/themed";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system";
 import * as yup from "yup";
@@ -14,6 +14,11 @@ import { Input } from "@components/Input";
 import { Button } from "@components/Button";
 import { ToastMessage } from "@components/ToastMessage";
 import { useAuth } from "@hooks/useAuth";
+import { api } from "@services/api";
+import { AppError } from "@utils/AppError";
+
+import defaultUserPhoto from "@assets/userPhotoDefault.png";
+
 
 
 
@@ -28,6 +33,8 @@ type FormDataProps = {
 
 const profileSchema = yup.object({
     name: yup.string().required('Informe o nome'),
+    email: yup.string().email('E-mail inválido').required('Informe o e-mail'),
+    old_password: yup.string().nullable().transform((value) => (!!value ? value : null)),
     password: yup
         .string()
         .min(6, 'A senha deve ter pelo menos 6 dígitos.')
@@ -46,10 +53,10 @@ const profileSchema = yup.object({
 })
 
 export function Profile() {
-    const [userPhoto, setUserPhoto] = useState("https://github.com/lfgiacomelli.png");
+    const [isUpdating, setIsUpdating] = useState(false);
 
     const toast = useToast();
-    const { user } = useAuth();
+    const { user, updateUserProfile } = useAuth();
 
     const { control, handleSubmit, formState: { errors } } = useForm<FormDataProps>({
         defaultValues: {
@@ -94,15 +101,105 @@ export function Profile() {
                     })
                 }
 
-                setUserPhoto(photoUri);
+                const fileExtension = photoSelected.assets[0].uri.split('.').pop();
+
+                const photoFile = {
+                    name: `${user.name}.${fileExtension}`.toLowerCase(),
+                    uri: photoSelected.assets[0].uri,
+                    type: `${photoSelected.assets[0].type}/${fileExtension}`
+                } as any;
+
+                const userPhotoUploadForm = new FormData();
+                userPhotoUploadForm.append('avatar', photoFile);
+
+                const avatarUpdatedResponse = await api.patch('/users/avatar', userPhotoUploadForm, {
+                    headers: {
+                        'Content-Type': 'multipart/form-data'
+                    }
+                });
+
+                const userUpdated = user;
+                userUpdated.avatar = avatarUpdatedResponse.data.avatar;
+
+                await updateUserProfile(userUpdated);
+
+                toast.show({
+                    placement: "top",
+                    render: ({ id }) => (
+                        <ToastMessage
+                            id={id}
+                            action="success"
+                            title="Foto de perfil atualizada"
+                            description="Sua foto de perfil foi atualizada com sucesso."
+                            onClose={() => toast.close(id)}
+                        />
+                    )
+                });
+                console.log(userUpdated);
             }
         } catch (error) {
+            const isAppError = error instanceof AppError;
+            const title = isAppError ? error.message : 'Não foi possível atualizar a foto de perfil.';
+
+            toast.show({
+                placement: "top",
+                render: ({ id }) => (
+                    <ToastMessage
+                        id={id}
+                        action="error"
+                        title={title}
+                        description="Tente novamente mais tarde."
+                        onClose={() => toast.close(id)}
+                    />
+                )
+            })
             console.error(error);
         }
     }
 
     async function handleProfileUpdate(data: FormDataProps) {
-        console.log(data);
+        try {
+            setIsUpdating(true);
+
+            const userUpdated = user;
+            userUpdated.name = data.name;
+
+            await api.put('/users', data);
+
+            await updateUserProfile(userUpdated);
+
+            toast.show({
+                placement: "top",
+                render: ({ id }) => (
+                    <ToastMessage
+                        id={id}
+                        action="success"
+                        title="Perfil atualizado"
+                        description="As informações do seu perfil foram atualizadas com sucesso."
+                        onClose={() => toast.close(id)}
+                    />
+                )
+            })
+        } catch (error) {
+            const isAppError = error instanceof AppError;
+            const title = isAppError ? error.message : 'Não foi possível atualizar o perfil. Tente novamente mais tarde.';
+
+            toast.show({
+                placement: "top",
+                render: ({ id }) => (
+                    <ToastMessage
+                        id={id}
+                        action="error"
+                        title={title}
+                        description="As informações do seu perfil não puderam ser atualizadas."
+                        onClose={() => toast.close(id)}
+                    />
+                )
+            })
+        }
+        finally {
+            setIsUpdating(false);
+        }
     }
 
     return (
@@ -111,7 +208,7 @@ export function Profile() {
             <ScreenHeader title="Perfil" />
             <ScrollView contentContainerStyle={{ paddingBottom: 36 }}>
                 <Center mt="$6" px="$10">
-                    <UserPhoto source={{ uri: userPhoto }}
+                    <UserPhoto source={user.avatar ? { uri: `${api.defaults.baseURL}/avatar/${user.avatar}` } : defaultUserPhoto}
                         alt="Foto de perfil do usuário"
                         size="xl"
                     />
@@ -213,6 +310,7 @@ export function Profile() {
                         <Button
                             title="Atualizar"
                             onPress={handleSubmit(handleProfileUpdate)}
+                            isLoading={isUpdating}
                         />
                     </Center>
                 </Center>
