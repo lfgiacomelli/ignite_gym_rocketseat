@@ -8,7 +8,8 @@ import { HistoryByDayDTO } from "@dtos/HistoryByDayDTO";
 
 import { ScreenHeader } from "@components/ScreenHeader";
 import { HistoryCard } from "@components/HistoryCard";
-import { List } from "lucide-react-native";
+import { Loading } from "@components/Loading";
+
 import { AppError } from "@utils/AppError";
 import { ToastMessage } from "@components/ToastMessage";
 import { useFocusEffect } from "@react-navigation/native";
@@ -51,7 +52,9 @@ export function History() {
     return (
         <VStack flex={1}>
             <ScreenHeader title="Histórico de Exercícios" />
-            <SectionList
+            {
+                isLoading ? <Loading /> :
+                <SectionList
                 sections={exercises}
                 keyExtractor={item => item.id}
                 renderItem={({ item }) => <HistoryCard data={item} />}
@@ -70,7 +73,7 @@ export function History() {
                     </Text>
                 )}
                 showsVerticalScrollIndicator={false}
-            />
+            />}
         </VStack>
     )
 }
